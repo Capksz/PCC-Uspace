@@ -7,6 +7,9 @@
 #include "../core/options.h"
 #include <signal.h>
 
+#include <vector>
+#include <cmath>
+
 #define DATA_BATCH_SIZE 1000000
 
 using namespace std;
@@ -113,7 +116,11 @@ void* monitor(void* s) {
     UDTSOCKET u = *(UDTSOCKET*)s;
     UDT::TRACEINFO perf;
 
-    cout << "\tRate (Mbps)\tRTT (ms)\tSent\t\tLost" << endl;
+    cout << "\tRate (Mbps)\t\ttRTT (ms)\t\tJitter\t\tSent\t\tLost" << endl;
+
+    const size_t WINDOW_SIZE = 20;
+    std::vector<double> rtt_samples;
+
     int i = 0;
     while (true) {
         sleep(1);
@@ -122,9 +129,34 @@ void* monitor(void* s) {
             cout << "perfmon: " << UDT::getlasterror().getErrorMessage() << endl;
             break;
         }
+
+        double current_rtt = perf.msRTT; // RTT in ms from perfmon
+    
+        // Add the new RTT sample to our window
+        rtt_samples.push_back(current_rtt);
+        if (rtt_samples.size() > WINDOW_SIZE) {
+            rtt_samples.erase(rtt_samples.begin());
+        }
+        
+        // Compute mean
+        double sum = 0.0;
+        for (double r : rtt_samples) {
+            sum += r;
+        }
+        double mean = sum / rtt_samples.size();
+        
+        // Compute variance and then standard deviation (jitter)
+        double variance = 0.0;
+        for (double r : rtt_samples) {
+            variance += (r - mean) * (r - mean);
+        }
+        variance /= rtt_samples.size();
+        double jitter = sqrt(variance);
+
         cout   << i <<"\t"
                << perf.mbpsSendRate    << "\t\t"
                << perf.msRTT           << "\t\t"
+               << jitter               << "\t\t"
                << perf.pktSentTotal    << "\t\t"
                << perf.pktSndLossTotal << endl;
     }

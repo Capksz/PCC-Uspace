@@ -6,12 +6,21 @@
 #include "../core/udt.h"
 #include "../core/options.h"
 
+#include <vector>
+#include <cmath>
+#include <mutex>
+#include <map>
+
 using namespace std;
+
+std::mutex g_throughputMutex;
+std::map<UDTSOCKET, double> g_throughputs;
 
 void* senddata(void*);
 void* recvdata(void*);
 void* recv_monitor(void* s);
 void* send_monitor(void* s);
+void* fairness_monitor(void*);
 
 void prusage() {
     cout << "usage: appserver <send|recv> [server_port]" << endl;
@@ -55,6 +64,10 @@ int main(int argc, char* argv[]) {
     freeaddrinfo(res);
 
     cout << "server is ready at port: " << service << endl;
+
+   pthread_t fairnessThread;
+   pthread_create(&fairnessThread, NULL, fairness_monitor, NULL);
+   pthread_detach(fairnessThread);
 
     if (UDT::ERROR == UDT::listen(serv, 10)) {
         cout << "listen: " << UDT::getlasterror().getErrorMessage() << endl;
@@ -185,6 +198,11 @@ void* recv_monitor(void* s)
            << perf.msRTT << "\t"
            << perf.pktRecv << "\t\t"
            << std::endl;
+      
+      {
+         std::lock_guard<std::mutex> lock(g_throughputMutex);
+         g_throughputs[u] = perf.mbpsRecvRate;
+      }
    }
 
       return NULL;
@@ -218,4 +236,27 @@ void* send_monitor(void* s)
    }
 
       return NULL;
+}
+
+void* fairness_monitor(void*) {
+   std::cout << "[DEBUG] Fairness monitor thread started!" << std::endl;
+   while (true) {
+       sleep(1);
+       double sum = 0.0;
+       double sum_sq = 0.0;
+       int count = 0;
+       
+       {
+           std::lock_guard<std::mutex> lock(g_throughputMutex);
+           for (const auto& entry : g_throughputs) {
+               sum += entry.second;
+               sum_sq += entry.second * entry.second;
+               count++;
+           }
+       }
+       
+       double fairness = (count > 0) ? (sum * sum) / (count * sum_sq + 1e-6) : 1.0;
+       cout << "Global Fairness: " << fairness << endl;
+   }
+   return NULL;
 }

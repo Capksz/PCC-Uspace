@@ -71,11 +71,15 @@ written by
 //#define DEBUG_SEND_SEQ_AND_ID
 //#define DEBUG_LOSS
 
-namespace std {
-    int operator==(const struct timespec& ts1, const struct timespec& ts2) {
-            return ts1.tv_sec == ts2.tv_sec && ts1.tv_nsec == ts2.tv_nsec;
-    }
+bool operator==(const timespec& a, const timespec& b) {
+    return a.tv_sec == b.tv_sec && a.tv_nsec == b.tv_nsec;
 }
+
+// namespace std {
+//     int operator==(const struct timespec& ts1, const struct timespec& ts2) {
+//             return ts1.tv_sec == ts2.tv_sec && ts1.tv_nsec == ts2.tv_nsec;
+//     }
+// }
 using namespace std;
 
 std::mutex pcc_sender_lock;
