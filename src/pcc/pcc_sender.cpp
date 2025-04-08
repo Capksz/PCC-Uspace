@@ -135,6 +135,11 @@ PccSender::PccSender(QuicTime initial_rtt_us,
       rc_name_str = std::string(rc_name);
   }
   rate_controller_ = PccRateControllerFactory::Create(rc_name_str, call_freq, log);
+  if (rc_name == NULL) {
+    std::cout << "[PCC] Using rate controller: default" << std::endl;
+  } else {
+      std::cout << "[PCC] Using rate controller: " << rc_name << std::endl;
+  }
     rate_control_lock_ = new std::mutex();
 }
 
